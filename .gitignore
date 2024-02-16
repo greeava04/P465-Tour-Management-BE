@@ -131,3 +131,4 @@ dist
 
 # privatekey
 .private-key*
+*.tar
