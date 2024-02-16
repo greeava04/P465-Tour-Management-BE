@@ -21,14 +21,27 @@ app.get('/', (req,res) => {
 
 app.post('/register', async (req, res) => {
     try {
-        const {email, password} = req.body;
-        const possibleUser = await User.findOne( { email } );
+        const {email, password, username, firstName, lastName, phoneNum} = req.body;
+        if (!(email && password && username && firstName && lastName && phoneNum )) {
+            res.json({
+                "error": "Required field not found:"
+            })
+            return;
+        }
+        const possibleUser = await User.findOne( { email } ) || await User.findOne({ username });
         if (possibleUser) {
-            res.json({"error" : "Email already used"})
+            res.json({"error" : "Email/Username already used"})
             return;
         }
         console.log("creating user")
-        let newUser = await User.create({email, "passwordHash" : await bcrypt.hash(password, 12)})
+        let newUser = await User.create({
+            email, 
+            "passwordHash" : await bcrypt.hash(password, 12),
+            username,
+            firstName,
+            lastName,
+            phoneNum
+        })
         console.log(newUser);
         let id = newUser._id;
         let token = jwt.sign({ id }, privateKey, {expiresIn: "1 day"})
@@ -50,7 +63,7 @@ app.post('/login', async (req, res) => {
     }
     const authed = await bcrypt.compare(password, possibleUser.passwordHash)
     if (!authed) {
-        res.json({ "error": "UserName/Email not found"})
+        res.json({ "error": "Password incorrect" })
         return;
     }
     let id = possibleUser._id
@@ -65,7 +78,7 @@ app.get('/verify', async (req, res) => {
             return res.json({ "status": "error"});
         } else {
             const loggedInUser = await User.findById(data.id);
-            if (loggedInUser) return res.send(`Logged in ${loggedInUser.email}`);
+            if (loggedInUser) return res.send(`Logged in ${loggedInUser.email}, ${loggedInUser.username}`);
             else return res.json({ "status": "error"});
         }
     })
