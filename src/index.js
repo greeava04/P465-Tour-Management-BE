@@ -78,7 +78,10 @@ app.post('/verify', async (req, res) => {
             return res.json({ "status": "error"});
         } else {
             const loggedInUser = await User.findById(data.id);
-            if (loggedInUser) return res.send(`Logged in ${loggedInUser.email}, ${loggedInUser.username}`);
+            if (loggedInUser) return res.json({
+                email: loggedInUser.email,
+                username: loggedInUser.username
+            });
             else return res.json({ "status": "error"});
         }
     })
