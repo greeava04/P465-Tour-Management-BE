@@ -71,7 +71,7 @@ app.post('/login', async (req, res) => {
     res.json({ "message": "User authenticated", token })
 })
 
-app.get('/verify', async (req, res) => {
+app.post('/verify', async (req, res) => {
     const { token } = req.body;
     jwt.verify(token, privateKey, async (err, data) => {
         if (err) {
