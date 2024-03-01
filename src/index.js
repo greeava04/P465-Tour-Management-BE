@@ -18,7 +18,7 @@ app.use(cors())
 app.use(express.json())
 app.use(bodyParser.json());
 
-//storing temporary data in memory
+//storing temporary otp data in memory
 const users = {};
 
 app.get('/', (req,res) => {
@@ -93,7 +93,7 @@ app.post('/verify', async (req, res) => {
     })
 })
 
-//load gmail cred
+//load gmail credentials
 const gmailId = process.env.GMAIL_ID;
 const gmailPassword = process.env.GMAIL_PASSWORD; 
 
