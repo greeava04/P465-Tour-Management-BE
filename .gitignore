@@ -132,3 +132,5 @@ dist
 # privatekey
 .private-key*
 *.tar
+env
+src/config.js

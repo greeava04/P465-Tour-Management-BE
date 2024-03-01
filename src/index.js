@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const fs = require('fs');
 const User = require("../models/userModel");
 const bcrypt = require("bcryptjs");
+const config = require('./config')
 
 const bodyParser = require('body-parser');
 const nodemailer = require('nodemailer');
@@ -67,6 +68,7 @@ app.post('/login', async (req, res) => {
         res.json({ "error": "UserName/Email not found"})
         return;
     }
+    console.log(possibleUser)
     const authed = await bcrypt.compare(password, possibleUser.passwordHash)
     if (!authed) {
         res.json({ "error": "Password incorrect" })
@@ -94,8 +96,10 @@ app.post('/verify', async (req, res) => {
 })
 
 //load gmail credentials
-const gmailId = process.env.GMAIL_ID;
-const gmailPassword = process.env.GMAIL_PASSWORD; 
+const gmailId = config.email
+const gmailPassword = config.password;
+
+console.log(gmailId, gmailPassword)
 
 /**
  * Request OTP for Forgot and reset password: Sends out an otp to registered email id upon validation
@@ -163,14 +167,14 @@ app.post('/api/resetpassword', async (req, res) => {
         // Reset Password
         // hashing password
         // const hashedPassword = await bcrypt.hash(newPassword, 12);
-        const user = await User.findById(email);
+        const user = await User.findOne({ email });
         
         //return error if user not found
         if (!user) {
             throw new Error('User not found');
         }
         // Update the password
-        user.passwordHash = newPassword;
+        user.passwordHash = await bcrypt.hash(newPassword, 12);
         
         // Save the updated user object
         await user.save()
