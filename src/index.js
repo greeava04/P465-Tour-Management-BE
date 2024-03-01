@@ -6,6 +6,8 @@ const fs = require('fs');
 const User = require("../models/userModel");
 const bcrypt = require("bcryptjs");
 
+const bodyParser = require('body-parser');
+const nodemailer = require('nodemailer');
 
 const privateKey = fs.readFileSync('.private-key')
 
@@ -14,6 +16,10 @@ mongoose.connect("mongodb://10.1.1.109/admin").then(() => console.log("MongoDB c
 const app = express();
 app.use(cors())
 app.use(express.json())
+app.use(bodyParser.json());
+
+//storing temporary data in memory
+const users = {};
 
 app.get('/', (req,res) => {
     res.send("Hello world -- Owen Harris");
@@ -86,5 +92,99 @@ app.post('/verify', async (req, res) => {
         }
     })
 })
+
+//load gmail cred
+const gmailId = process.env.GMAIL_ID;
+const gmailPassword = process.env.GMAIL_PASSWORD; 
+
+/**
+ * Request OTP for Forgot and reset password: Sends out an otp to registered email id upon validation
+ * @param {string} email - Users email ID.
+ * @returns {forgotpassword<void>} - Resolves if opt sent successfully, rejects with error otherwise.
+ * @author - ysampath
+ */
+app.post('/api/forgotpassword', async (req, res) => {
+    const { email } = req.body;
+        try {
+            // validate user
+            const possibleUser = await User.findOne({ email });
+            //if not user,return
+            if(!possibleUser) {
+                res.json({ "error": "UserName/Email not found"})
+                return;
+            }
+            // Generate OTP 
+            const otp = Math.floor(100000 + Math.random() * 900000); // 6-digit OTP
+
+            // Send OTP to email
+            const transporter = nodemailer.createTransport({
+                service: 'gmail',
+                auth: {
+                  user: gmailId,
+                  pass: gmailPassword
+             }
+           });
+
+          const mailOptions = {
+                from: gmailId,
+                to: email,
+                subject: 'Forgot Password OTP',
+                text: `Your OTP for password reset is ${otp}`
+            };
+
+            await transporter.sendMail(mailOptions);
+
+            // Save OTP to user object in memory
+            users[email] = { otp };
+
+            return res.json({ success: true, message: 'OTP sent to your email' });
+        } catch (error) {
+            console.error(error);
+            return res.status(500).json({ error: 'Server error' });
+        }
+
+    });
+
+/**
+ * Set Forgot and reset password: validate otp and update password on validation.
+ * @param {string} email - Users email ID.
+ * @param {int} otp - generated otp.
+ * @param {string} newPassword - new user password.
+ * @returns {resetpassword<void>} - Resolves if password is updated successfully, rejects with error otherwise.
+ * @author - ysampath
+ */
+app.post('/api/resetpassword', async (req, res) => {
+    const { email, otp, newPassword } = req.body;
+    try {
+        // Check if OTP matches
+        if (!users[email] || users[email].otp !== otp) {
+            return res.json({ error: 'Invalid OTP' });
+        }
+        // Reset Password
+        // hashing password
+        // const hashedPassword = await bcrypt.hash(newPassword, 12);
+        const user = await User.findById(email);
+        
+        //return error if user not found
+        if (!user) {
+            throw new Error('User not found');
+        }
+        // Update the password
+        user.passwordHash = newPassword;
+        
+        // Save the updated user object
+        await user.save()
+
+        console.log(`Password for ${email} reset successfully to: ${newPassword}`);
+
+        // Remove OTP from memory
+        delete users[email];
+
+        return res.json({ success: true, message: 'Password reset successful' });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: 'Password reset failed' });
+    }
+});
 
 app.listen(3000);
