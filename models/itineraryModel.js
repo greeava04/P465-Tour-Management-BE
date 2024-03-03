@@ -8,10 +8,9 @@ const itinerarySchema = new mongoose.Schema({
   description: String,
   destinations: [
     {
-      location: String,
-      arrivalDate: Date,
-      departureDate: Date,
-    },
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Place'
+    }
   ],
   activities: [String],
   startDate: {

@@ -206,7 +206,7 @@ app.post('/api/makeItinerary', async (req, res) => {
             return res.status(403).json(user)
         }
         id = user._id;
-
+        
 
         console.log("Attempting to create new itinerary for, ", id);
 
@@ -277,6 +277,65 @@ app.post('/api/deleteItinerary', async (req, res) => {
         if (it) {
             it.deleted = true;
             return res.json(it);
+        } else {
+            return res.status(404).json({ "error": "Itinerary not found" })
+        }
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ "error": "Internal Server Error" });
+    }
+})
+
+app.post('/api/addActivity', async (req, res) => {
+    const {token, id, activity} = req.body
+    try {
+        let user = await verifyUserLogIn(token);
+        if (user.error) {
+            return res.status(403).json(user)
+        }
+
+        const objID = new mongoose.mongo.ObjectId(id);
+        console.log(objID);
+
+        const it = await Itinerary.findById(objID);
+        console.log(it)
+
+        if (it) {
+            it.activities.push(activity);
+            await it.save()
+            return res.json(it);
+        } else {
+            return res.status(404).json({ "error": "Itinerary not found" })
+        }
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ "error": "Internal Server Error" });
+    }
+
+})
+
+app.post('/api/addPlace', async (req,res) => {
+    const {token, id, place} = req.body
+    try {
+        let user = await verifyUserLogIn(token);
+        if (user.error) {
+            return res.status(403).json(user)
+        }
+
+        const objID = new mongoose.mongo.ObjectId(id);
+        const placeID = new mongoose.mongo.ObjectId(place);
+        console.log(objID);
+
+        const it = await Itinerary.findById(objID);
+        console.log(it)
+
+        if (it) {
+            console.log(it.activities)
+            it.destinations.push(placeID)
+            await it.save()
+            return res.json(it)
         } else {
             return res.status(404).json({ "error": "Itinerary not found" })
         }
