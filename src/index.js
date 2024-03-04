@@ -6,14 +6,17 @@ const fs = require('fs');
 const User = require("../models/userModel");
 const Itinerary = require("../models/itineraryModel")
 const bcrypt = require("bcryptjs");
+const handlebars = require('handlebars');
+const path = require('path');
 const config = require('./config');
+require('dotenv').config();
 
 const bodyParser = require('body-parser');
 const nodemailer = require('nodemailer');
 
 const privateKey = fs.readFileSync('.private-key')
 
-mongoose.connect("mongodb://10.1.1.109/admin").then(() => console.log("MongoDB connected!"))
+mongoose.connect("mongodb://127.0.0.1:27017/eztravel").then(() => console.log("MongoDB connected!"))
 
 const app = express();
 app.use(cors())
@@ -29,54 +32,84 @@ app.get('/', (req, res) => {
 
 app.post('/register', async (req, res) => {
     try {
-        const { email, password, username, firstName, lastName, phoneNum } = req.body;
-        if (!(email && password && username && firstName && lastName && phoneNum)) {
+        const {email, password, username, firstName, lastName, phoneNum} = req.body;
+        if (!(email && password && username && firstName && lastName && phoneNum )) {
             res.json({
                 "error": "Required field not found:"
             })
             return;
         }
-        const possibleUser = await User.findOne({ email }) || await User.findOne({ username });
+        const possibleUser = await User.findOne( { email } ) || await User.findOne({ username });
         if (possibleUser) {
-            res.json({ "error": "Email/Username already used" })
+            res.json({"error" : "Email/Username already used"})
             return;
         }
         console.log("creating user")
         let newUser = await User.create({
-            email,
-            "passwordHash": await bcrypt.hash(password, 12),
+            email, 
+            "passwordHash" : await bcrypt.hash(password, 12),
             username,
             firstName,
             lastName,
             phoneNum
         })
         console.log(newUser);
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+            user: gmailId,
+            pass: gmailPassword
+        }
+        });
+        const data = {
+            firstName: firstName,
+            content: `
+            We are thrilled to welcome you to the vibrant community of adventurers here at EzTravel!
+            <br/>
+            <br/>
+            Get ready to embark on a journey filled with unforgettable experiences, breathtaking destinations, and lifelong memories waiting to be created.
+            <br/>
+            <br/>
+            Together, let's explore the world, one destination at a time, and make every moment count!
+            <br/>
+            <br/>`
+        }
+        const templateStr = fs.readFileSync(path.join(__dirname, '..', 'templates', 'email.hbs')).toString()
+        const template = handlebars.compile(templateStr, { noEscape: true });
+        const html = template(data);
+        const mailOptions = {
+            from: gmailId,
+            to: email,
+            subject: `Welcome Aboard! Let's Craft Memories Together!`,
+            html:html
+        };
+        await transporter.sendMail(mailOptions);
         let id = newUser._id;
-        let token = jwt.sign({ id }, privateKey, { expiresIn: "1 day" })
+        let token = jwt.sign({ id }, privateKey, {expiresIn: "1 day"})
         res.json({ "message": "User created succesfully", token })
     } catch (error) {
         console.error(error);
-        res.json({ "error": "Server error" })
+        res.json({ "error" : "Server error"})
     }
 
 })
 
 app.post('/login', async (req, res) => {
-    const { email, password } = req.body;
+    const {email, password} = req.body;
     const possibleUser = await User.findOne({ email });
 
-    if (!possibleUser) {
-        res.json({ "error": "UserName/Email not found" })
+    if(!possibleUser) {
+        res.json({ "error": "UserName/Email not found"})
         return;
     }
-    console.log(possibleUser)
     const authed = await bcrypt.compare(password, possibleUser.passwordHash)
     if (!authed) {
         res.json({ "error": "Password incorrect" })
         return;
     }
     let id = possibleUser._id
-    const token = jwt.sign({ id }, privateKey, { expiresIn: "1 day" })
+    let firstName = possibleUser.firstName
+    const token = jwt.sign({ id, firstName, email }, privateKey, {expiresIn: "1 day"})
     res.json({ "message": "User authenticated", token })
 })
 
@@ -189,6 +222,96 @@ app.post('/api/resetpassword', async (req, res) => {
     } catch (error) {
         console.error(error);
         return res.status(500).json({ error: 'Password reset failed' });
+    }
+});
+
+
+/**
+ * @author - adpadgal
+ */
+app.post("/sendotp", async (req, res) => {
+    try {
+        const { token } = req.body;
+        jwt.verify(token, privateKey, async (err, decoded) => {
+            console.log(decoded.id)
+            if (err) {
+                return res.status(401).json({ error: "Unauthorized" });
+            } else {
+                const otp = Math.floor(100000 + Math.random() * 900000);
+                const transporter = nodemailer.createTransport({
+                    service: 'gmail',
+                    auth: {
+                    user: gmailId,
+                    pass: gmailPassword
+                }
+                });
+                const data = {
+                    firstName: decoded.firstName,
+                    content: `
+                    Greetings from EzTravel, your gateway to extraordinary journeys and unforgettable experiences!
+                    <br/>
+                    <br/>
+                    To ensure the utmost security of your account and safeguard your travel plans, we require a quick verification step.
+                    <br/>
+                    Please find your one-time password (OTP) below:
+                    <br/>
+                    <br/>
+                    OTP: ${otp}
+                    <br/>
+                    <br/>
+                    Should you have any questions or concerns, our dedicated support team is here to assist you every step of the way.
+                    <br/>
+                    <br/>
+                    Get ready to embark on your next adventure with EzTravel!
+                    <br/>
+                    <br/>
+                    <br/>`
+                }
+                const templateStr = fs.readFileSync(path.join(__dirname, '..', 'templates', 'email.hbs')).toString()
+                const template = handlebars.compile(templateStr, { noEscape: true });
+                const html = template(data);
+                const mailOptions = {
+                    from: gmailId,
+                    to: decoded.email,
+                    subject: 'Your OTP for Login into EzTravel Account',
+                    html:html
+                };
+                await transporter.sendMail(mailOptions);
+                users[decoded.email] = { otp };
+                res.status(200).json({ status: "Verification initiated"});
+            }
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+/**
+ * @author - adpadgal
+ */
+app.post("/verifyotp", async (req, res) => {
+    try {
+        const { otpCode, token } = req.body;
+        jwt.verify(token, privateKey, async (err, decoded) => {
+            if (err) {
+                return res.status(401).json({ error: "Unauthorized" });
+            } else {
+                const json = users[decoded.email]
+                if (json.otp == otpCode){
+                    delete users[decoded.email];
+                    let id = decoded.id;
+                    let token = jwt.sign({ id }, privateKey, {expiresIn: "1 day"})
+                    res.status(200).json({ message: "OTP verified", token});
+                }
+                else {
+                    return res.status(401).json({ error: "Invalid OTP entered" });
+                }
+            }
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
