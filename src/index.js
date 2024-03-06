@@ -16,7 +16,7 @@ const nodemailer = require('nodemailer');
 
 const privateKey = fs.readFileSync('.private-key')
 
-mongoose.connect("mongodb://127.0.0.1:27017/eztravel").then(() => console.log("MongoDB connected!"))
+mongoose.connect("mongodb://10.1.1.109/admin").then(() => console.log("MongoDB connected!"))
 
 const app = express();
 app.use(cors())
