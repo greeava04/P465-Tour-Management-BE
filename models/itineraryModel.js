@@ -8,11 +8,30 @@ const itinerarySchema = new mongoose.Schema({
   description: String,
   destinations: [
     {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Place'
+      place: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Place', 
+        required: true
+      },
+      time_start: {
+        type: Number,       // Unix time - ease of sorting
+        required: true
+      },
+      time_end: Number 
     }
   ],
-  activities: [String],
+  activities: [
+    {
+      activity: {
+        type: String
+      },
+      time_start: {
+        type: Number,       // Unix time - ease of sorting
+        required: true
+      },
+      time_end: Number 
+    }
+  ],
   startDate: {
     type: Date,
     required: true,
