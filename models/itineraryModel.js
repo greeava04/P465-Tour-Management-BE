@@ -40,6 +40,21 @@ const itinerarySchema = new mongoose.Schema({
     type: Date,
     required: true,
   },
+  comments: [
+    {
+      body: {
+        type: String
+      },
+      itineraryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true
+      },
+      username: {
+        type: String,
+        ref: 'User',
+      }
+    }
+  ],
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

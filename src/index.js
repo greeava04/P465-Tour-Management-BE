@@ -642,6 +642,108 @@ app.post('/api/updateActivityTiming', async (req, res) => {
     }
 });
 
+/**
+ * Shares the itinerary.
+ * 
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ * @returns {object} The itinerary ID or an error response.
+ * @author avmandal
+ */
+app.post('/api/shareItinerary', async (req,res) =>{
+    const{ token, id } = req.body;
+    try {
+        let user = await verifyUserLogIn(token);
+        if (user.error) {
+            return res.status(403).json(user);
+        }
+        const objID = new mongoose.Types.ObjectId(id);
+
+        const it = await Itinerary.findById(objID);
+        if (!it) {
+            return res.status(404).json({ "error": "Itinerary not found" });
+        }
+        return res.status(200).json({ status: "shared", id: it._id})
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ "error": "Internal Server Error" });
+    }
+});
+
+/**
+ * Gets an itinerary with the help of ID.
+ * 
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ * @returns {object} The itinerary or an error response.
+ * @author avmandal
+ */
+app.get('/api/getSharedItinerary/:id', async (req,res) =>{
+    const{ token } = req.body;
+    const{ id } = req.params;
+
+    try {
+        let user = await verifyUserLogIn(token);
+        if (user.error) {
+            return res.status(403).json(user);
+        }
+        const objID = new mongoose.Types.ObjectId(id);
+
+        const it = await Itinerary.findById(objID);
+        if (!it) {
+            return res.status(404).json({ "error": "Itinerary not found" });
+        }
+
+        await it.save();
+        return res.json(it)
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ "error": "Internal Server Error" });
+    }
+});
+
+/**
+ * Adds comment to the itinerary
+ * 
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ * @returns {object} The updated itinerary or an error response.
+ * @author avmandal
+ */
+app.post('/api/addComment', async (req,res) =>{
+    const{ itineraryId, token, comment } = req.body;
+
+    try {
+        let user = await verifyUserLogIn(token);
+        console.log(user)
+        if (user.error) {
+            return res.status(403).json(user);
+        }
+        const objID = new mongoose.Types.ObjectId(itineraryId);
+
+        const it = await Itinerary.findById(objID);
+        if (!it) {
+            return res.status(404).json({ "error": "Itinerary not found" });
+        }
+
+        const newComment = {
+            body: comment,
+            itineraryId: itineraryId,
+            username: user.username 
+        };
+
+        it.comments.push(newComment);
+        await it.save();
+
+        return res.json(it);
+        
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ "error": "Internal Server Error" });
+    }
+});
 
 async function verifyUserLogIn(token) {
     return jwt.verify(token, privateKey, async (err, data) => {
