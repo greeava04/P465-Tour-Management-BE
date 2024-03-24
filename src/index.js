@@ -16,7 +16,7 @@ const nodemailer = require('nodemailer');
 
 const privateKey = fs.readFileSync('.private-key')
 
-mongoose.connect("mongodb://10.1.1.109/admin").then(() => console.log("MongoDB connected!"))
+mongoose.connect("mongodb://localhost:27017").then(() => console.log("MongoDB connected!"))
 
 const app = express();
 app.use(cors())
@@ -411,7 +411,7 @@ app.post('/api/deleteItinerary', async (req, res) => {
 })
 
 app.post('/api/addActivity', async (req, res) => {
-    const {token, id, activity} = req.body
+    const {token, id, activity, time_start, time_end} = req.body
     try {
         let user = await verifyUserLogIn(token);
         if (user.error) {
@@ -419,13 +419,16 @@ app.post('/api/addActivity', async (req, res) => {
         }
 
         const objID = new mongoose.mongo.ObjectId(id);
-        console.log(objID);
 
         const it = await Itinerary.findById(objID);
-        console.log(it)
 
         if (it) {
-            it.activities.push(activity);
+            const newActivity = {
+                activity: activity,
+                time_start: time_start,
+                time_end: time_end
+            }
+            it.activities.push(newActivity);
             await it.save()
             return res.json(it);
         } else {
@@ -440,7 +443,7 @@ app.post('/api/addActivity', async (req, res) => {
 })
 
 app.post('/api/addPlace', async (req,res) => {
-    const {token, id, place} = req.body
+    const {token, id, place, time_start, time_end} = req.body
     try {
         let user = await verifyUserLogIn(token);
         if (user.error) {
@@ -455,8 +458,12 @@ app.post('/api/addPlace', async (req,res) => {
         console.log(it)
 
         if (it) {
-            console.log(it.activities)
-            it.destinations.push(placeID)
+            const newDestination = {
+                place: placeID,
+                time_start: time_start,
+                time_end: time_end
+            }
+            it.destinations.push(newDestination)
             await it.save()
             return res.json(it)
         } else {
@@ -469,6 +476,274 @@ app.post('/api/addPlace', async (req,res) => {
     }
 })
 
+/**
+ * Deletes an activity from an itinerary.
+ * 
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ * @returns {object} The updated itinerary or an error response.
+ * @author avmandal
+ */
+app.delete('/api/deleteActivity', async(req, res) => {
+    const {token, id, activity} = req.body
+    try {
+        let user = await verifyUserLogIn(token);
+        if (user.error) {
+            return res.status(403).json(user)
+        }
+
+        const objID = new mongoose.mongo.ObjectId(id);
+        
+        const it = await Itinerary.findById(objID)
+
+        if (it) {
+            const index = it.activities.findIndex(act => act.activity === activity);
+            console.log(index)
+            if (index !== -1) {
+                it.activities.splice(index, 1);
+                await it.save();
+                return res.json(it);
+            } else {
+                return res.status(404).json({ "error": "Item not found in the itinerary" });
+            }
+        } else {
+            return res.status(404).json({"error": "Itinerary not found"});
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({"error": "Internal Server Error"});
+    }
+
+})
+
+/**
+ * Deletes a place from an itinerary.
+ * 
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ * @returns {object} The updated itinerary or an error response.
+ * @author avmandal
+ */
+app.delete('/api/deletePlace', async(req, res) => {
+    const {token, id, place} = req.body
+    try {
+        let user = await verifyUserLogIn(token);
+        if (user.error) {
+            return res.status(403).json(user)
+        }
+        console.log(place)
+
+        const objID = new mongoose.mongo.ObjectId(id);
+
+        const it = await Itinerary.findById(objID);
+
+        if (it) {
+            const index = it.destinations.findIndex(dest => dest.place.equals(place));
+            console.log(index)
+            if (index !== -1) {
+                it.destinations.splice(index, 1)
+                await it.save()
+                return res.json(it)
+            } else {
+                return res.status(404).json({ "error": "Item not found in the itinerary" });
+            }
+        
+        } else {
+            return res.status(404).json({ "error": "Itinerary not found" })
+        }
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ "error": "Internal Server Error" });
+    }
+})
+
+/**
+ * Updates the timing of a place in an itinerary.
+ * 
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ * @returns {object} The updated itinerary or an error response.
+ * @author avmandal
+ */
+app.post('/api/updatePlaceTiming', async (req, res) => {
+    const { token, id, place, time_start, time_end } = req.body;
+    try {
+        let user = await verifyUserLogIn(token);
+        if (user.error) {
+            return res.status(403).json(user);
+        }
+        const objID = new mongoose.Types.ObjectId(id);
+
+        const it = await Itinerary.findById(objID);
+        if (!it) {
+            return res.status(404).json({ "error": "Itinerary not found" });
+        }
+
+        const destination = it.destinations.find(dest => dest.place.equals(place));
+        if (!destination) {
+            return res.status(404).json({ "error": "Destination not found in itinerary" });
+        }
+
+        if (time_start !== undefined) {
+            destination.time_start = time_start;
+        }
+        if (time_end !== undefined) {
+            destination.time_end = time_end;
+        }
+        await it.save();
+
+        return res.json(it);
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ "error": "Internal Server Error" });
+    }
+});
+
+/**
+ * Updates the timing of an activity in an itinerary.
+ * 
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ * @returns {object} The updated itinerary or an error response.
+ * @author avmandal
+ */
+app.post('/api/updateActivityTiming', async (req, res) => {
+    const { token, id, activity, time_start, time_end } = req.body;
+    try {
+        let user = await verifyUserLogIn(token);
+        if (user.error) {
+            return res.status(403).json(user);
+        }
+        const objID = new mongoose.Types.ObjectId(id);
+
+        const it = await Itinerary.findById(objID);
+        if (!it) {
+            return res.status(404).json({ "error": "Itinerary not found" });
+        }
+
+        const act = it.activities.find(act => act.activity === activity);
+        if (!act) {
+            return res.status(404).json({ "error": "Activity not found in itinerary" });
+        }
+
+        if (time_start !== undefined) {
+            act.time_start = time_start;
+        }
+        if (time_end !== undefined) {
+            act.time_end = time_end;
+        }
+        await it.save();
+
+        return res.json(it);
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ "error": "Internal Server Error" });
+    }
+});
+
+/**
+ * Shares the itinerary.
+ * 
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ * @returns {object} The itinerary ID or an error response.
+ * @author avmandal
+ */
+app.post('/api/shareItinerary', async (req,res) =>{
+    const{ token, id } = req.body;
+    try {
+        let user = await verifyUserLogIn(token);
+        if (user.error) {
+            return res.status(403).json(user);
+        }
+        const objID = new mongoose.Types.ObjectId(id);
+
+        const it = await Itinerary.findById(objID);
+        if (!it) {
+            return res.status(404).json({ "error": "Itinerary not found" });
+        }
+        return res.status(200).json({ status: "shared", id: it._id})
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ "error": "Internal Server Error" });
+    }
+});
+
+/**
+ * Gets an itinerary with the help of ID.
+ * 
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ * @returns {object} The itinerary or an error response.
+ * @author avmandal
+ */
+app.get('/api/getSharedItinerary/:id', async (req,res) =>{
+    const{ token } = req.body;
+    const{ id } = req.params;
+
+    try {
+        let user = await verifyUserLogIn(token);
+        if (user.error) {
+            return res.status(403).json(user);
+        }
+        const objID = new mongoose.Types.ObjectId(id);
+
+        const it = await Itinerary.findById(objID);
+        if (!it) {
+            return res.status(404).json({ "error": "Itinerary not found" });
+        }
+
+        await it.save();
+        return res.json(it)
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ "error": "Internal Server Error" });
+    }
+});
+
+/**
+ * Adds comment to the itinerary
+ * 
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ * @returns {object} The updated itinerary or an error response.
+ * @author avmandal
+ */
+app.post('/api/addComment', async (req,res) =>{
+    const{ itineraryId, token, comment } = req.body;
+
+    try {
+        let user = await verifyUserLogIn(token);
+        console.log(user)
+        if (user.error) {
+            return res.status(403).json(user);
+        }
+        const objID = new mongoose.Types.ObjectId(itineraryId);
+
+        const it = await Itinerary.findById(objID);
+        if (!it) {
+            return res.status(404).json({ "error": "Itinerary not found" });
+        }
+
+        const newComment = {
+            body: comment,
+            itineraryId: itineraryId,
+            username: user.username 
+        };
+
+        it.comments.push(newComment);
+        await it.save();
+
+        return res.json(it);
+        
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ "error": "Internal Server Error" });
+    }
+});
 
 async function verifyUserLogIn(token) {
     return jwt.verify(token, privateKey, async (err, data) => {
@@ -476,7 +751,6 @@ async function verifyUserLogIn(token) {
             return { "error": "Unable to verify login" }
         } else {
             const loggedInUser = await User.findById(data.id);
-            // console.log(loggedInUser);
             if (!loggedInUser) {
                 return { "error": "Unable to verify login" }
             } else {
