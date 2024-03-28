@@ -16,7 +16,9 @@ const nodemailer = require('nodemailer');
 
 const privateKey = fs.readFileSync('.private-key')
 
-mongoose.connect("mongodb://10.1.1.109/admin").then(() => console.log("MongoDB connected!"))
+const dbUrl = process.env.DB || "mongodb://localhost/"
+
+mongoose.connect(dbUrl).then(() => console.log("MongoDB connected!"))
 
 const app = express();
 app.use(cors())
@@ -747,12 +749,12 @@ app.get('/api/convertCurrency', async (req, res) => {
     console.log("Running convert currency")
 
     const response = await fetch(`https://api.currencyapi.com/v3/latest?base_currency=${base}&currencies=${currencies}`, {
-                method: "GET",
-                headers: {
-                    "Content-Type": "application/json",
-                    "apikey": config.API
-                }
-            });
+        method: "GET",
+        headers: {
+            "Content-Type": "application/json",
+            "apikey": config.API
+        }
+    });
 
     const json = await response.json();
     return res.json(json);
