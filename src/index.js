@@ -16,7 +16,7 @@ const nodemailer = require('nodemailer');
 
 const privateKey = fs.readFileSync('.private-key')
 
-mongoose.connect("mongodb://localhost:27017").then(() => console.log("MongoDB connected!"))
+mongoose.connect("mongodb://10.1.1.109/admin").then(() => console.log("MongoDB connected!"))
 
 const app = express();
 app.use(cors())
@@ -32,22 +32,22 @@ app.get('/', (req, res) => {
 
 app.post('/register', async (req, res) => {
     try {
-        const {email, password, username, firstName, lastName, phoneNum} = req.body;
-        if (!(email && password && username && firstName && lastName && phoneNum )) {
+        const { email, password, username, firstName, lastName, phoneNum } = req.body;
+        if (!(email && password && username && firstName && lastName && phoneNum)) {
             res.json({
                 "error": "Required field not found:"
             })
             return;
         }
-        const possibleUser = await User.findOne( { email } ) || await User.findOne({ username });
+        const possibleUser = await User.findOne({ email }) || await User.findOne({ username });
         if (possibleUser) {
-            res.json({"error" : "Email/Username already used"})
+            res.json({ "error": "Email/Username already used" })
             return;
         }
         console.log("creating user")
         let newUser = await User.create({
-            email, 
-            "passwordHash" : await bcrypt.hash(password, 12),
+            email,
+            "passwordHash": await bcrypt.hash(password, 12),
             username,
             firstName,
             lastName,
@@ -57,9 +57,9 @@ app.post('/register', async (req, res) => {
         const transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: {
-            user: gmailId,
-            pass: gmailPassword
-        }
+                user: gmailId,
+                pass: gmailPassword
+            }
         });
         const data = {
             firstName: firstName,
@@ -81,25 +81,25 @@ app.post('/register', async (req, res) => {
             from: gmailId,
             to: email,
             subject: `Welcome Aboard! Let's Craft Memories Together!`,
-            html:html
+            html: html
         };
         await transporter.sendMail(mailOptions);
         let id = newUser._id;
-        let token = jwt.sign({ id }, privateKey, {expiresIn: "1 day"})
+        let token = jwt.sign({ id }, privateKey, { expiresIn: "1 day" })
         res.json({ "message": "User created succesfully", token })
     } catch (error) {
         console.error(error);
-        res.json({ "error" : "Server error"})
+        res.json({ "error": "Server error" })
     }
 
 })
 
 app.post('/login', async (req, res) => {
-    const {email, password} = req.body;
+    const { email, password } = req.body;
     const possibleUser = await User.findOne({ email });
 
-    if(!possibleUser) {
-        res.json({ "error": "UserName/Email not found"})
+    if (!possibleUser) {
+        res.json({ "error": "UserName/Email not found" })
         return;
     }
     const authed = await bcrypt.compare(password, possibleUser.passwordHash)
@@ -109,7 +109,7 @@ app.post('/login', async (req, res) => {
     }
     let id = possibleUser._id
     let firstName = possibleUser.firstName
-    const token = jwt.sign({ id, firstName, email }, privateKey, {expiresIn: "1 day"})
+    const token = jwt.sign({ id, firstName, email }, privateKey, { expiresIn: "1 day" })
     res.json({ "message": "User authenticated", token })
 })
 
@@ -241,9 +241,9 @@ app.post("/sendotp", async (req, res) => {
                 const transporter = nodemailer.createTransport({
                     service: 'gmail',
                     auth: {
-                    user: gmailId,
-                    pass: gmailPassword
-                }
+                        user: gmailId,
+                        pass: gmailPassword
+                    }
                 });
                 const data = {
                     firstName: decoded.firstName,
@@ -274,11 +274,11 @@ app.post("/sendotp", async (req, res) => {
                     from: gmailId,
                     to: decoded.email,
                     subject: 'Your OTP for Login into EzTravel Account',
-                    html:html
+                    html: html
                 };
                 await transporter.sendMail(mailOptions);
                 users[decoded.email] = { otp };
-                res.status(200).json({ status: "Verification initiated"});
+                res.status(200).json({ status: "Verification initiated" });
             }
         });
     } catch (error) {
@@ -298,11 +298,11 @@ app.post("/verifyotp", async (req, res) => {
                 return res.status(401).json({ error: "Unauthorized" });
             } else {
                 const json = users[decoded.email]
-                if (json.otp == otpCode){
+                if (json.otp == otpCode) {
                     delete users[decoded.email];
                     let id = decoded.id;
-                    let token = jwt.sign({ id }, privateKey, {expiresIn: "1 day"})
-                    res.status(200).json({ message: "OTP verified", token});
+                    let token = jwt.sign({ id }, privateKey, { expiresIn: "1 day" })
+                    res.status(200).json({ message: "OTP verified", token });
                 }
                 else {
                     return res.status(401).json({ error: "Invalid OTP entered" });
@@ -329,7 +329,7 @@ app.post('/api/makeItinerary', async (req, res) => {
             return res.status(403).json(user)
         }
         id = user._id;
-        
+
 
         console.log("Attempting to create new itinerary for, ", id);
 
@@ -411,7 +411,7 @@ app.post('/api/deleteItinerary', async (req, res) => {
 })
 
 app.post('/api/addActivity', async (req, res) => {
-    const {token, id, activity, time_start, time_end} = req.body
+    const { token, id, activity, time_start, time_end } = req.body
     try {
         let user = await verifyUserLogIn(token);
         if (user.error) {
@@ -442,8 +442,8 @@ app.post('/api/addActivity', async (req, res) => {
 
 })
 
-app.post('/api/addPlace', async (req,res) => {
-    const {token, id, place, time_start, time_end} = req.body
+app.post('/api/addPlace', async (req, res) => {
+    const { token, id, place, time_start, time_end } = req.body
     try {
         let user = await verifyUserLogIn(token);
         if (user.error) {
@@ -484,8 +484,8 @@ app.post('/api/addPlace', async (req,res) => {
  * @returns {object} The updated itinerary or an error response.
  * @author avmandal
  */
-app.delete('/api/deleteActivity', async(req, res) => {
-    const {token, id, activity} = req.body
+app.delete('/api/deleteActivity', async (req, res) => {
+    const { token, id, activity } = req.body
     try {
         let user = await verifyUserLogIn(token);
         if (user.error) {
@@ -493,7 +493,7 @@ app.delete('/api/deleteActivity', async(req, res) => {
         }
 
         const objID = new mongoose.mongo.ObjectId(id);
-        
+
         const it = await Itinerary.findById(objID)
 
         if (it) {
@@ -507,11 +507,11 @@ app.delete('/api/deleteActivity', async(req, res) => {
                 return res.status(404).json({ "error": "Item not found in the itinerary" });
             }
         } else {
-            return res.status(404).json({"error": "Itinerary not found"});
+            return res.status(404).json({ "error": "Itinerary not found" });
         }
     } catch (error) {
         console.error(error);
-        return res.status(500).json({"error": "Internal Server Error"});
+        return res.status(500).json({ "error": "Internal Server Error" });
     }
 
 })
@@ -524,8 +524,8 @@ app.delete('/api/deleteActivity', async(req, res) => {
  * @returns {object} The updated itinerary or an error response.
  * @author avmandal
  */
-app.delete('/api/deletePlace', async(req, res) => {
-    const {token, id, place} = req.body
+app.delete('/api/deletePlace', async (req, res) => {
+    const { token, id, place } = req.body
     try {
         let user = await verifyUserLogIn(token);
         if (user.error) {
@@ -547,7 +547,7 @@ app.delete('/api/deletePlace', async(req, res) => {
             } else {
                 return res.status(404).json({ "error": "Item not found in the itinerary" });
             }
-        
+
         } else {
             return res.status(404).json({ "error": "Itinerary not found" })
         }
@@ -650,8 +650,8 @@ app.post('/api/updateActivityTiming', async (req, res) => {
  * @returns {object} The itinerary ID or an error response.
  * @author avmandal
  */
-app.post('/api/shareItinerary', async (req,res) =>{
-    const{ token, id } = req.body;
+app.post('/api/shareItinerary', async (req, res) => {
+    const { token, id } = req.body;
     try {
         let user = await verifyUserLogIn(token);
         if (user.error) {
@@ -663,7 +663,7 @@ app.post('/api/shareItinerary', async (req,res) =>{
         if (!it) {
             return res.status(404).json({ "error": "Itinerary not found" });
         }
-        return res.status(200).json({ status: "shared", id: it._id})
+        return res.status(200).json({ status: "shared", id: it._id })
     } catch (error) {
         console.error(error);
         return res.status(500).json({ "error": "Internal Server Error" });
@@ -678,15 +678,10 @@ app.post('/api/shareItinerary', async (req,res) =>{
  * @returns {object} The itinerary or an error response.
  * @author avmandal
  */
-app.get('/api/getSharedItinerary/:id', async (req,res) =>{
-    const{ token } = req.body;
-    const{ id } = req.params;
+app.get('/api/getSharedItinerary/:id', async (req, res) => {
+    const { id } = req.params;
 
     try {
-        let user = await verifyUserLogIn(token);
-        if (user.error) {
-            return res.status(403).json(user);
-        }
         const objID = new mongoose.Types.ObjectId(id);
 
         const it = await Itinerary.findById(objID);
@@ -711,8 +706,8 @@ app.get('/api/getSharedItinerary/:id', async (req,res) =>{
  * @returns {object} The updated itinerary or an error response.
  * @author avmandal
  */
-app.post('/api/addComment', async (req,res) =>{
-    const{ itineraryId, token, comment } = req.body;
+app.post('/api/addComment', async (req, res) => {
+    const { itineraryId, token, comment } = req.body;
 
     try {
         let user = await verifyUserLogIn(token);
@@ -730,19 +725,37 @@ app.post('/api/addComment', async (req,res) =>{
         const newComment = {
             body: comment,
             itineraryId: itineraryId,
-            username: user.username 
+            username: user.username
         };
 
         it.comments.push(newComment);
         await it.save();
 
         return res.json(it);
-        
+
 
     } catch (error) {
         console.error(error);
         return res.status(500).json({ "error": "Internal Server Error" });
     }
+});
+
+app.get('/api/convertCurrency', async (req, res) => {
+    const base = req.query.base_currency
+    const currencies = req.query.currencies;
+
+    console.log("Running convert currency")
+
+    const response = await fetch(`https://api.currencyapi.com/v3/latest?base_currency=${base}&currencies=${currencies}`, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                    "apikey": config.API
+                }
+            });
+
+    const json = await response.json();
+    return res.json(json);
 });
 
 async function verifyUserLogIn(token) {
