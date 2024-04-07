@@ -134,3 +134,5 @@ dist
 *.tar
 env
 src/config.js
+
+docker.sh

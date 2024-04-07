@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const fs = require('fs');
 const User = require("../models/userModel");
 const Itinerary = require("../models/itineraryModel")
+const Booking = require("../models/bookingModel")
 const bcrypt = require("bcryptjs");
 const handlebars = require('handlebars');
 const path = require('path');
@@ -873,6 +874,111 @@ app.get('/api/convertCurrency', async (req, res) => {
     return res.json(json);
 });
 
+app.post('/api/makeBooking', async (req, res) => {
+    const { itineraryID, token } = req.body;
+    try {
+        let user = await verifyUserLogIn(token);
+
+        if (user.error) {
+            return res.status(403).json({ user })
+        }
+
+        let it = await Itinerary.findById(itineraryID);
+
+        if (!it) {
+            return res.status(404).json({ "error": "Itinerary not found" })
+        }
+
+        if (await Booking.findOne({ fromItinerary: itineraryID })) {
+            return res.status(500).json({ "error": "Booking already made for itinerary" })
+        }
+
+        let price = 0;
+
+        let hotelPrice = await computePrice(it.hotels, "hotel/")
+        let flightPrice = await computePrice(it.flights, "flights/")
+        let thingsToDo = await computePrice(it.things, "things-to-do/")
+        let placePrice = await computePrice(it.destinations, "places/")
+
+        price = hotelPrice + flightPrice + thingsToDo + placePrice; // Might need to specially compute hotel price
+
+
+        let booking = await Booking.create({
+            title: it.title,
+            hotels: it.hotels,
+            flights: it.flights,
+            things: it.things,
+            totalPrice: price,
+            createdBy: it.createdBy,
+            fromItinerary: itineraryID,
+            destinations: it.destinations,
+        })
+
+
+
+        return res.json(booking);
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({"error" : "internal server error"})
+    }
+    
+})
+
+app.post('/api/getBookingPrice', async (req, res) => {
+    const { itineraryID, token } = req.body;
+    let user = await verifyUserLogIn(token);
+
+    if (user.error) {
+        return res.status(403).json({ user })
+    }
+
+    let it = await Itinerary.findById(itineraryID);
+
+    if (!it) {
+        return res.status(404).json({ "error": "Itinerary not found" })
+    }
+
+    if (await Booking.findOne({ fromItinerary: itineraryID })) {
+        return res.status(500).json({ "error": "Booking already made for itinerary" })
+    }
+
+    let price = 0;
+
+
+
+    let hotelPrice = await computePrice(it.hotels, "hotel/")
+    let flightPrice = await computePrice(it.flights, "flights/")
+    let thingsToDo = await computePrice(it.things, "things-to-do/")
+    let placePrice = await computePrice(it.destinations, "places/")
+
+    price = placePrice + hotelPrice + flightPrice + thingsToDo;
+
+    return res.json(price);
+})
+
+app.post('/api/getBooking', async (req, res) => {
+    const { token, bookingID } = req.body;
+
+    let user = await verifyUserLogIn(token);
+
+    if (user.error) {
+        return res.status(403).json({ user })
+    }
+    let booking;
+    if (bookingID) {
+        booking = await Booking.findById(bookingID);
+    } else {
+        booking = await Booking.findOne({"createdBy": user._id});
+    }
+
+    if (booking) {
+        return res.json(booking);
+    } else {
+        return res.status(404).json({"error" : "Booking not found"});
+    }
+
+});
+
 async function verifyUserLogIn(token) {
     return jwt.verify(token, privateKey, async (err, data) => {
         if (err) {
@@ -887,6 +993,32 @@ async function verifyUserLogIn(token) {
         }
     })
 }
+
+
+async function computePrice(array, endPoint) {
+    try {
+        let price = 0.0;
+        // console.log(array)
+        if (!array) {
+            return 0;
+        }
+        for (let objID of [...array]) {
+            console.log(config.placeLink + endPoint + objID.place);
+            let response = await fetch(config.placeLink + endPoint + objID.place);
+            let json = await response.json();
+            if (json.place.price) {
+                price += Number(json.place.price);
+            } else {
+                console.log(endPoint, "didn't have price for", objID);
+            }
+        }
+        return price;
+    } catch (error) {
+        console.error(error)
+        return 0;
+    }
+}
+
 
 
 
