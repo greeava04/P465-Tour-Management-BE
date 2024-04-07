@@ -9,6 +9,8 @@ const bcrypt = require("bcryptjs");
 const handlebars = require('handlebars');
 const path = require('path');
 const config = require('./config');
+const {google} = require('googleapis');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const bodyParser = require('body-parser');
@@ -224,6 +226,117 @@ app.post('/api/resetpassword', async (req, res) => {
     } catch (error) {
         console.error(error);
         return res.status(500).json({ error: 'Password reset failed' });
+    }
+});
+
+/**
+ * @author - adpadgal
+ */
+const CLIENT_ID = config.GOOGLE_CLIENT_ID;
+const CLIENT_SECRET = config.GOOGLE_CLIENT_SECRET;
+const REDIRECT_URI = 'http://owenhar1.asuscomm.com:3000/auth/google/callback';
+const session = []
+
+const oauth2Client = new google.auth.OAuth2(
+    CLIENT_ID,
+    CLIENT_SECRET,
+    REDIRECT_URI
+  );
+
+// Redirect user to Google's OAuth 2.0 server
+app.get('/auth/google', (req, res) => {
+    const url = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      scope: ['https://www.googleapis.com/auth/userinfo.profile', 'https://www.googleapis.com/auth/userinfo.email'],
+      prompt: 'select_account',
+    });
+    res.redirect(url);
+});
+
+// Handle OAuth 2.0 server response
+app.get('/auth/google/callback', async (req, res) => {
+    const {code} = req.query;
+    try {
+        const {tokens} = await oauth2Client.getToken(code);
+        oauth2Client.setCredentials(tokens);
+
+        // Fetch user details from Google
+        const oauth2 = google.oauth2({
+            auth: oauth2Client,
+            version: 'v2'
+        });
+
+        const userinfoResponse = await oauth2.userinfo.get();
+        const googleUser = userinfoResponse.data;
+
+
+        let user = await User.findOne({ googleId: googleUser.id });
+        if (!user) {
+            // User doesn't exist, so create a new user record
+            user = new User({
+                googleId: googleUser.id,
+                email: googleUser.email,
+                firstName: googleUser.given_name,
+                lastName: googleUser.family_name,
+            });
+            await user.save();
+            const transporter = nodemailer.createTransport({
+                service: 'gmail',
+                auth: {
+                user: gmailId,
+                pass: gmailPassword
+            }
+            });
+            const data = {
+                firstName: googleUser.given_name,
+                content: `
+                We are thrilled to welcome you to the vibrant community of adventurers here at EzTravel!
+                <br/>
+                <br/>
+                Get ready to embark on a journey filled with unforgettable experiences, breathtaking destinations, and lifelong memories waiting to be created.
+                <br/>
+                <br/>
+                Together, let's explore the world, one destination at a time, and make every moment count!
+                <br/>
+                <br/>`
+            }
+            const templateStr = fs.readFileSync(path.join(__dirname, '..', 'templates', 'email.hbs')).toString()
+            const template = handlebars.compile(templateStr, { noEscape: true });
+            const html = template(data);
+            const mailOptions = {
+                from: gmailId,
+                to: googleUser.email,
+                subject: `Welcome Aboard! Let's Craft Memories Together!`,
+                html:html
+            };
+            await transporter.sendMail(mailOptions);
+        }
+
+        const jwtToken = jwt.sign({
+            userId: user.id,
+            email: user.email,
+            name: user.name,
+        }, privateKey, { expiresIn: '1d' });
+
+        console.log(jwtToken);
+        const sessionIdentifier = crypto.randomBytes(32).toString('hex');
+        session[sessionIdentifier] = { jwt: jwtToken };
+        res.redirect(`http://localhost:3000/signin?session_id=${sessionIdentifier}`); // Redirect to the frontend
+    } catch (error) {
+        console.error('Error during authentication', error);
+        res.status(500).send('Authentication error');
+    }
+});
+
+app.post('/gettoken', async (req, res) => {
+    const { sessionId } = req.body;
+    console.log(sessionId)
+    const tokenInfo = session[sessionId];
+
+    if (tokenInfo && tokenInfo.jwt) {
+        res.json({ token: tokenInfo.jwt });
+    } else {
+        res.status(404).json({ error: 'Invalid session or token not found' });
     }
 });
 
