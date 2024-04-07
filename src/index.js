@@ -322,7 +322,7 @@ app.get('/auth/google/callback', async (req, res) => {
         console.log(jwtToken);
         const sessionIdentifier = crypto.randomBytes(32).toString('hex');
         session[sessionIdentifier] = { jwt: jwtToken };
-        res.redirect(`http://localhost:3000/signin?session_id=${sessionIdentifier}`); // Redirect to the frontend
+        res.redirect(`http://owenhar1.asuscomm.com/signin?session_id=${sessionIdentifier}`); // Redirect to the frontend
     } catch (error) {
         console.error('Error during authentication', error);
         res.status(500).send('Authentication error');
@@ -913,7 +913,23 @@ app.post('/api/makeBooking', async (req, res) => {
             fromItinerary: itineraryID,
             destinations: it.destinations,
         })
+        
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: gmailId,
+                pass: gmailPassword
+            }
+        });
 
+        const mailOptions = {
+            from: gmailId,
+            to: user.email,
+            subject: 'New Booking!',
+            text: `Thank you for booking with EZTrip! Please use this link to view your booking: https://owenhar1.asuscomm.com/booking?id=${booking._id}`
+        };
+
+        await transporter.sendMail(mailOptions);
 
 
         return res.json(booking);
