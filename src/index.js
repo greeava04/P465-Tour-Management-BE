@@ -212,6 +212,11 @@ app.post('/api/resetpassword', async (req, res) => {
         if (!user) {
             throw new Error('User not found');
         }
+        // Check if the new password is the same as the old password
+        const isSamePassword = await bcrypt.compare(newPassword, user.passwordHash);
+        if (isSamePassword) {
+            return res.json({ error: 'New password cannot be the same as the old password' });
+        }
         // Update the password
         user.passwordHash = await bcrypt.hash(newPassword, 12);
 
