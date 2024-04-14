@@ -10,7 +10,7 @@ const bcrypt = require("bcryptjs");
 const handlebars = require('handlebars');
 const path = require('path');
 const config = require('./config');
-const {google} = require('googleapis');
+const { google } = require('googleapis');
 const crypto = require('crypto');
 require('dotenv').config();
 
@@ -247,23 +247,23 @@ const oauth2Client = new google.auth.OAuth2(
     CLIENT_ID,
     CLIENT_SECRET,
     REDIRECT_URI
-  );
+);
 
 // Redirect user to Google's OAuth 2.0 server
 app.get('/auth/google', (req, res) => {
     const url = oauth2Client.generateAuthUrl({
-      access_type: 'offline',
-      scope: ['https://www.googleapis.com/auth/userinfo.profile', 'https://www.googleapis.com/auth/userinfo.email'],
-      prompt: 'select_account',
+        access_type: 'offline',
+        scope: ['https://www.googleapis.com/auth/userinfo.profile', 'https://www.googleapis.com/auth/userinfo.email'],
+        prompt: 'select_account',
     });
     res.redirect(url);
 });
 
 // Handle OAuth 2.0 server response
 app.get('/auth/google/callback', async (req, res) => {
-    const {code} = req.query;
+    const { code } = req.query;
     try {
-        const {tokens} = await oauth2Client.getToken(code);
+        const { tokens } = await oauth2Client.getToken(code);
         oauth2Client.setCredentials(tokens);
 
         // Fetch user details from Google
@@ -289,9 +289,9 @@ app.get('/auth/google/callback', async (req, res) => {
             const transporter = nodemailer.createTransport({
                 service: 'gmail',
                 auth: {
-                user: gmailId,
-                pass: gmailPassword
-            }
+                    user: gmailId,
+                    pass: gmailPassword
+                }
             });
             const data = {
                 firstName: googleUser.given_name,
@@ -313,15 +313,13 @@ app.get('/auth/google/callback', async (req, res) => {
                 from: gmailId,
                 to: googleUser.email,
                 subject: `Welcome Aboard! Let's Craft Memories Together!`,
-                html:html
+                html: html
             };
             await transporter.sendMail(mailOptions);
         }
 
         const jwtToken = jwt.sign({
-            userId: user.id,
-            email: user.email,
-            name: user.name,
+            id: user.id,
         }, privateKey, { expiresIn: '1d' });
 
         console.log(jwtToken);
@@ -596,6 +594,178 @@ app.post('/api/addPlace', async (req, res) => {
         return res.status(500).json({ "error": "Internal Server Error" });
     }
 })
+
+app.post('/api/addThing', async (req, res) => {
+    const { token, id, type, thing_id, time_start, time_end } = req.body;
+    try {
+        let user = await verifyUserLogIn(token);
+        if (user.error) {
+            return res.status(403).json(user)
+        }
+
+        const it = await Itinerary.findById(id);
+
+        if (!it) {
+            return res.status(404).json({ "error": "Itinerary not found" });
+        }
+
+        switch (type) {
+            case 'hotel':
+                const { days } = req.body;
+                const newHotel = {
+                    place: thing_id,
+                    time_start: time_start,
+                    days: days,
+                    time_end: time_end,
+                }
+
+                it.hotels.push(newHotel);
+
+                await it.save();
+                return res.json(it);
+            case 'flight':
+                const { round_trip } = req.body;
+                const newFlight = {
+                    place: thing_id,
+                    time_start: time_start,
+                    time_end: time_end,
+                    round_trip: round_trip,
+                }
+                it.flights.push(newFlight);
+
+                await it.save();
+                return res.json(it);
+            case 'thing':
+                const newThing = {
+                    place: thing_id,
+                    time_start: time_start,
+                    time_end: time_end,
+                }
+                it.things.push(newThing);
+                await it.save();
+                return res.json(it);
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ "error": "Internal Server Error" });
+    }
+})
+
+app.post('/api/updateThingTiming', async (req, res) => {
+    const { token, id, type, thing_id, time_start, time_end } = req.body;
+    try {
+        let user = await verifyUserLogIn(token);
+        if (user.error) {
+            return res.status(403).json(user);
+        }
+        const objID = new mongoose.Types.ObjectId(id);
+
+        const it = await Itinerary.findById(objID);
+        if (!it) {
+            return res.status(404).json({ "error": "Itinerary not found" });
+        }
+
+        let destination = null;
+
+        switch (type) {
+            case 'hotel':
+                const { days } = req.body;
+                destination = it.hotels.find((thing) => thing.place.equals(thing_id));
+                if (!destination) {
+                    return res.status(404).json({ "error": "Destination not found in itinerary" });
+                }
+                destination.time_end = time_end;
+                destination.time_start = time_start;
+                destination.days = days;
+                break;
+            case 'flight':
+                const { round_trip } = req.body;
+                destination = it.flights.find((thing) => thing.place.equals(thing_id));
+                if (!destination) {
+                    return res.status(404).json({ "error": "Destination not found in itinerary" });
+                }
+                destination.time_end = time_end;
+                destination.time_start = time_start;
+                destination.round_trip = round_trip;
+                break;
+            case 'thing':
+                destination = it.things.find((thing) => thing.place.equals(thing_id));
+                if (!destination) {
+                    return res.status(404).json({ "error": "Destination not found in itinerary" });
+                }
+                destination.time_end = time_end;
+                destination.time_start = time_start;
+                break;
+        }
+        await it.save();
+
+        return res.json(it);
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ "error": "Internal Server Error" });
+    }
+});
+
+app.delete('/api/deleteThing', async (req, res) => {
+    const { token, id, type, thing_id } = req.body;
+    try {
+        let user = await verifyUserLogIn(token);
+        if (user.error) {
+            return res.status(403).json(user);
+        }
+        const objID = new mongoose.Types.ObjectId(id);
+
+        const it = await Itinerary.findById(objID);
+        if (!it) {
+            return res.status(404).json({ "error": "Itinerary not found" });
+        }
+
+        let result = null;
+
+        switch (type) {
+            case 'hotel':
+                result = deleteThing(it.hotels, thing_id);
+                break;
+            case 'flight':
+                result = deleteThing(it.flights, thing_id);
+                break;
+            case 'thing':
+                result = deleteThing(it.things, thing_id);
+                break;
+        }
+        
+        if (!result) {
+            return res.status(404).json({ "error": "Item not found in the itinerary" });
+        }
+
+        await it.save();
+
+        return res.json(it);
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ "error": "Internal Server Error" });
+    }
+});
+
+/**
+ * 
+ * @param {[]} array Array of desintaions (places, hotels, flights, things)
+ * @param {String} thing objID 
+ * @returns {Boolean} true if deleted, false if not found
+ * @author Owen Harris
+ */
+function deleteThing(array, thing) {
+    const index = array.findIndex(dest => dest.place == thing);
+    console.log(index)
+    if (index !== -1) {
+        array.splice(index, 1);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+
 
 /**
  * Deletes an activity from an itinerary.
@@ -900,10 +1070,10 @@ app.post('/api/makeBooking', async (req, res) => {
 
         let price = 0;
 
-        let hotelPrice = await computePrice(it.hotels, "hotel/")
-        let flightPrice = await computePrice(it.flights, "flights/")
-        let thingsToDo = await computePrice(it.things, "things-to-do/")
-        let placePrice = await computePrice(it.destinations, "places/")
+        let hotelPrice = await computePrice(it.hotels, "hotels/", "hotel")
+        let flightPrice = await computePrice(it.flights, "flights/", "flight")
+        let thingsToDo = await computePrice(it.things, "things-to-do/", "thingToDo")
+        let placePrice = await computePrice(it.destinations, "places/", "place")
 
         price = hotelPrice + flightPrice + thingsToDo + placePrice; // Might need to specially compute hotel price
 
@@ -918,7 +1088,7 @@ app.post('/api/makeBooking', async (req, res) => {
             fromItinerary: itineraryID,
             destinations: it.destinations,
         })
-        
+
         const transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: {
@@ -940,9 +1110,9 @@ app.post('/api/makeBooking', async (req, res) => {
         return res.json(booking);
     } catch (error) {
         console.error(error);
-        return res.status(500).json({"error" : "internal server error"})
+        return res.status(500).json({ "error": "internal server error" })
     }
-    
+
 })
 
 app.post('/api/getBookingPrice', async (req, res) => {
@@ -967,10 +1137,10 @@ app.post('/api/getBookingPrice', async (req, res) => {
 
 
 
-    let hotelPrice = await computePrice(it.hotels, "hotel/")
-    let flightPrice = await computePrice(it.flights, "flights/")
-    let thingsToDo = await computePrice(it.things, "things-to-do/")
-    let placePrice = await computePrice(it.destinations, "places/")
+    let hotelPrice = await computePrice(it.hotels, "hotels/", "hotel")
+    let flightPrice = await computePrice(it.flights, "flights/", "flight")
+    let thingsToDo = await computePrice(it.things, "things-to-do/", "thingToDo")
+    let placePrice = await computePrice(it.destinations, "places/", "place")
 
     price = placePrice + hotelPrice + flightPrice + thingsToDo;
 
@@ -989,13 +1159,13 @@ app.post('/api/getBooking', async (req, res) => {
     if (bookingID) {
         booking = await Booking.findById(bookingID);
     } else {
-        booking = await Booking.findOne({"createdBy": user._id});
+        booking = await Booking.findOne({ "createdBy": user._id });
     }
 
     if (booking) {
         return res.json(booking);
     } else {
-        return res.status(404).json({"error" : "Booking not found"});
+        return res.status(404).json({ "error": "Booking not found" });
     }
 
 });
@@ -1016,7 +1186,7 @@ async function verifyUserLogIn(token) {
 }
 
 
-async function computePrice(array, endPoint) {
+async function computePrice(array, endPoint, type) {
     try {
         let price = 0.0;
         // console.log(array)
@@ -1027,15 +1197,15 @@ async function computePrice(array, endPoint) {
             console.log(config.placeLink + endPoint + objID.place);
             let response = await fetch(config.placeLink + endPoint + objID.place);
             let json = await response.json();
-            if (json.place.price) {
-                price += Number(json.place.price);
+            if (json[type].price) {
+                price += Number(json[type].price);
             } else {
                 console.log(endPoint, "didn't have price for", objID);
             }
         }
         return price;
     } catch (error) {
-        console.error(error)
+        console.error(error, endPoint, type)
         return 0;
     }
 }

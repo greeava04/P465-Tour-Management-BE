@@ -45,7 +45,8 @@ const bookingSchema = new mongoose.Schema({
         type: Number,       // Unix time - ease of sorting
         required: true
       },
-      time_end: Number 
+      time_end: Number,
+      round_trip: Boolean,
     }
   ],
   things: [
