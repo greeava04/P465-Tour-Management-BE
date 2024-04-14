@@ -1065,10 +1065,10 @@ app.post('/api/makeBooking', async (req, res) => {
 
         let price = 0;
 
-        let hotelPrice = await computePrice(it.hotels, "hotel/")
-        let flightPrice = await computePrice(it.flights, "flights/")
-        let thingsToDo = await computePrice(it.things, "things-to-do/")
-        let placePrice = await computePrice(it.destinations, "places/")
+        let hotelPrice = await computePrice(it.hotels, "hotels/", "hotel")
+        let flightPrice = await computePrice(it.flights, "flights/", "flight")
+        let thingsToDo = await computePrice(it.things, "things-to-do/", "thingToDo")
+        let placePrice = await computePrice(it.destinations, "places/", "place")
 
         price = hotelPrice + flightPrice + thingsToDo + placePrice; // Might need to specially compute hotel price
 
@@ -1132,10 +1132,10 @@ app.post('/api/getBookingPrice', async (req, res) => {
 
 
 
-    let hotelPrice = await computePrice(it.hotels, "hotel/")
-    let flightPrice = await computePrice(it.flights, "flights/")
-    let thingsToDo = await computePrice(it.things, "things-to-do/")
-    let placePrice = await computePrice(it.destinations, "places/")
+    let hotelPrice = await computePrice(it.hotels, "hotels/", "hotel")
+    let flightPrice = await computePrice(it.flights, "flights/", "flight")
+    let thingsToDo = await computePrice(it.things, "things-to-do/", "thingToDo")
+    let placePrice = await computePrice(it.destinations, "places/", "place")
 
     price = placePrice + hotelPrice + flightPrice + thingsToDo;
 
@@ -1181,7 +1181,7 @@ async function verifyUserLogIn(token) {
 }
 
 
-async function computePrice(array, endPoint) {
+async function computePrice(array, endPoint, type) {
     try {
         let price = 0.0;
         // console.log(array)
@@ -1192,15 +1192,15 @@ async function computePrice(array, endPoint) {
             console.log(config.placeLink + endPoint + objID.place);
             let response = await fetch(config.placeLink + endPoint + objID.place);
             let json = await response.json();
-            if (json.place.price) {
-                price += Number(json.place.price);
+            if (json[type].price) {
+                price += Number(json[type].price);
             } else {
                 console.log(endPoint, "didn't have price for", objID);
             }
         }
         return price;
     } catch (error) {
-        console.error(error)
+        console.error(error, endPoint, type)
         return 0;
     }
 }
