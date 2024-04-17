@@ -17,11 +17,15 @@ require('dotenv').config();
 const bodyParser = require('body-parser');
 const nodemailer = require('nodemailer');
 
+const user = process.env.DBUSER;
+const password = process.env.DBPASS;
+
 const privateKey = fs.readFileSync('.private-key')
 
 const dbUrl = process.env.DB || "mongodb://localhost/"
 
-mongoose.connect(dbUrl).then(() => console.log("MongoDB connected!"))
+if (user && password) mongoose.connect(dbUrl, {"auth": {"authSource": "admin"}, "user": user, "pass": password, "dbName": "admin"}).then(() => console.log("MongoDB connected!"));
+else mongoose.connect(dbUrl).then(() => console.log("MongoDB connected!"));
 
 const app = express();
 app.use(cors())
