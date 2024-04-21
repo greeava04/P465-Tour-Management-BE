@@ -140,8 +140,8 @@ app.post('/verify', async (req, res) => {
 })
 
 //load gmail credentials
-const gmailId = config.email
-const gmailPassword = config.password;
+const gmailId = process.env.GMAILID
+const gmailPassword = process.env.GMAILPASSWORD;
 
 console.log(gmailId, gmailPassword)
 
@@ -243,9 +243,9 @@ app.post('/api/resetpassword', async (req, res) => {
 /**
  * @author - adpadgal
  */
-const CLIENT_ID = config.GOOGLE_CLIENT_ID;
-const CLIENT_SECRET = config.GOOGLE_CLIENT_SECRET;
-const REDIRECT_URI = 'http://owenhar1.asuscomm.com:3000/auth/google/callback';
+const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const REDIRECT_URI = 'https://auth.harrisowe.me/auth/google/callback';
 const session = []
 
 const oauth2Client = new google.auth.OAuth2(
@@ -330,7 +330,7 @@ app.get('/auth/google/callback', async (req, res) => {
         console.log(jwtToken);
         const sessionIdentifier = crypto.randomBytes(32).toString('hex');
         session[sessionIdentifier] = { jwt: jwtToken };
-        res.redirect(`http://owenhar1.asuscomm.com/signin?session_id=${sessionIdentifier}`); // Redirect to the frontend
+        res.redirect(`https://owenhar1.asuscomm.com/signin?session_id=${sessionIdentifier}`); // Redirect to the frontend
     } catch (error) {
         console.error('Error during authentication', error);
         res.status(500).send('Authentication error');
@@ -1046,7 +1046,7 @@ app.get('/api/convertCurrency', async (req, res) => {
         method: "GET",
         headers: {
             "Content-Type": "application/json",
-            "apikey": config.API
+            "apikey": process.env.API_KEY
         }
     });
 
@@ -1192,6 +1192,7 @@ async function verifyUserLogIn(token) {
 
 
 async function computePrice(array, endPoint, type) {
+    const placeLink = process.env.PLACE_LINK;
     try {
         let price = 0.0;
         // console.log(array)
@@ -1199,8 +1200,8 @@ async function computePrice(array, endPoint, type) {
             return 0;
         }
         for (let objID of [...array]) {
-            console.log(config.placeLink + endPoint + objID.place);
-            let response = await fetch(config.placeLink + endPoint + objID.place);
+            console.log(placeLink + endPoint + objID.place);
+            let response = await fetch(placeLink + endPoint + objID.place);
             let json = await response.json();
             if (json[type].price) {
                 price += Number(json[type].price);
