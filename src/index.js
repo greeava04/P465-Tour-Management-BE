@@ -330,7 +330,7 @@ app.get('/auth/google/callback', async (req, res) => {
         console.log(jwtToken);
         const sessionIdentifier = crypto.randomBytes(32).toString('hex');
         session[sessionIdentifier] = { jwt: jwtToken };
-        res.redirect(`https://owenhar1.asuscomm.com/signin?session_id=${sessionIdentifier}`); // Redirect to the frontend
+        res.redirect(`https://eztravels.me/signin?session_id=${sessionIdentifier}`); // Redirect to the frontend
     } catch (error) {
         console.error('Error during authentication', error);
         res.status(500).send('Authentication error');
