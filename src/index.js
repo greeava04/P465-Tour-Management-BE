@@ -9,7 +9,7 @@ const Booking = require("../models/bookingModel")
 const bcrypt = require("bcryptjs");
 const handlebars = require('handlebars');
 const path = require('path');
-const config = require('./config');
+// const config = require('./config');
 const { google } = require('googleapis');
 const crypto = require('crypto');
 require('dotenv').config();
