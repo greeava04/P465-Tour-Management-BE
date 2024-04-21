@@ -126,14 +126,15 @@ app.post('/verify', async (req, res) => {
     const { token } = req.body;
     jwt.verify(token, privateKey, async (err, data) => {
         if (err) {
-            return res.json({ "status": "error" });
+            return res.json({ "status": "error", "error": "error"});
         } else {
             const loggedInUser = await User.findById(data.id);
             if (loggedInUser) return res.json({
                 email: loggedInUser.email,
-                username: loggedInUser.username
+                username: loggedInUser.username,
+                "_id": loggedInUser._id
             });
-            else return res.json({ "status": "error" });
+            else return res.json({ "status": "error", "error": "error"});
         }
     })
 })
